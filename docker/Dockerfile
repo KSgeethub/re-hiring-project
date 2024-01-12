@@ -4,6 +4,9 @@ WORKDIR /app
 
 COPY src/ /app/
 
-RUN pip3 install -r requirements.txt
+RUN pip install --no-cache-dir -r requirements.txt
 
-CMD [ "python3", "-m" , "flask", "run", "--host=0.0.0.0"]
+EXPOSE 8080
+
+CMD ["python", "app.py"]
+     
