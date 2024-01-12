@@ -1,0 +1,28 @@
+name: Deploy Application
+
+on:
+  push:
+    branches: [ prod ]
+
+jobs:
+  build-and-deploy:
+    runs-on: ubuntu-latest
+
+    steps:
+    - name: Checkout Repo
+      uses: actions/checkout@v2
+
+    - name: Set up Cloud SDK
+      uses: google-github-actions/setup-gcloud@v0
+
+    - name: Build and Push Docker image
+      run: |
+        gcloud auth configure-docker
+        docker build -t gcr.io/$PROJECT_ID/my-app:$GITHUB_SHA .
+        docker push gcr.io/$PROJECT_ID/my-app:$GITHUB_SHA
+
+    - name: Initialize Terraform
+      run: terraform init
+
+    - name: Apply Terraform
+      run: terraform apply -auto-approve

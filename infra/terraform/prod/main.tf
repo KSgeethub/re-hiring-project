@@ -16,8 +16,24 @@ resource "google_compute_instance" "default" {
     }
   }
 
-  metadata_startup_script = templatefile("${path.module}/startup-script.sh.tmpl", {
+  metadata_startup_script = templatefile("${path.module}/startup-script.sh", {
     image_tag = var.image_tag
   })
+
+  tags = ["http-server"]  
+
 }
 
+
+resource "google_compute_firewall" "http_server" {
+  name    = "default-allow-http"
+  network = "default"
+
+  allow {
+    protocol = "tcp"
+    ports    = ["8080"]
+  }
+
+  source_ranges = ["0.0.0.0/0"]
+  target_tags   = ["http-server"]
+}
