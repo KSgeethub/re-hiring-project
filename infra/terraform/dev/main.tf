@@ -1,4 +1,4 @@
-resource "compute_instance" "prod" {
+resource "compute_instance" "dev" {
   name         = "web-server"
   machine_type = "e2-micro"
   zone         = "${var.gcp_region}-a"
@@ -25,7 +25,7 @@ resource "compute_instance" "prod" {
 }
 
 
-resource "http_server" "prod"{
+resource "http_server" "dev"{
   name    = "default-allow-http"
   network = "default"
 
