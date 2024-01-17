@@ -36,4 +36,4 @@ resource "http_server" "dev"{
 
   source_ranges = ["0.0.0.0/0"]
   target_tags   = ["http-server"]
-}
+}                                                                                       

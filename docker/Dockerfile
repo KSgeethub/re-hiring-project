@@ -1,12 +1,14 @@
-FROM python:3.10-slim-buster
+FROM python
 
 WORKDIR /app
 
 COPY src/ /app/
 
-RUN pip install -r requirements.txt
+RUN pip install --no-cache-dir -r requirements.txt
 
 EXPOSE 8080
 
-CMD ["python", "app.py"]
+# CMD ["python3", "app.py"]
+
+CMD [ "python3", "-m" , "flask", "run", "--host=0.0.0.0"]
      

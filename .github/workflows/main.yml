@@ -1,4 +1,4 @@
-name: Workflow
+name: CI/CD Workflow
 
 on:
   push:
@@ -10,52 +10,88 @@ jobs:
     runs-on: ubuntu-latest
     env:
       PROJECT_ID: hello-world-begin
+    defaults:
+      run:
+        shell: bash  
     steps:
     - name: Checkout Repository
-      uses: actions/checkout@v2
+      uses: actions/checkout@v4
 
+    - id: auth
+      uses: 'google-github-actions/auth@v2'
+      with:
+        credentials_json: ${{ secrets.PROD_GCP_SA_KEY }}
+      
     - name: Set up Cloud SDK for Dev
       if: contains(github.ref, 'dev/')
-      uses: google-github-actions/setup-gcloud@v0
-      with:
-        service_account_key: ${{ secrets.DEV_GCP_SA_KEY }}
-        project_id: ${{ secrets.DEV_GCP_PROJECT_ID }}
-        export_default_credentials: true
+      uses: google-github-actions/setup-gcloud@v2
+      # with:
+      #   service_account_key: ${{ secrets.DEV_GCP_SA_KEY }}
+      #   project_id: ${{ secrets.DEV_GCP_PROJECT_ID }}
+      #   export_default_credentials: true
 
     - name: Set up Cloud SDK for Prod
-      if: startsWith(github.ref, 'prod/') 
-      uses: google-github-actions/setup-gcloud@v0
+      # if: startsWith(github.ref, 'prod/') 
+      if:  ${{ github.ref == 'refs/heads/prod' }}
+      uses: google-github-actions/setup-gcloud@v2
       with:
-        service_account_key: ${{ secrets.PROD_GCP_SA_KEY }}
-        project_id: ${{ secrets.PROD_GCP_PROJECT_ID }}
-        export_default_credentials: true
-
+        project_id: ${{ env.PROJECT_ID }}
+        
+       
     - name: Build 
       run: |
-        gcloud auth configure-docker 
-        gcloud auth configure-docker us-east1-docker.pkg.dev 
-        docker build -t us-east1-docker.pkg.dev/$PROJECT_ID/images/hello-world:${{ github.sha }} -f docker/Dockerfile .
-        # docker build -t gcr.io/${{ env.PROJECT_ID }}/hello-world:${{ github.sha }} -f docker/Dockerfile .
+        # gcloud auth configure-docker us-east1-docker.pkg.dev 
+        # docker build -t us-east1-docker.pkg.dev/$PROJECT_ID/images/hello-world:${{ github.sha }} -f docker/Dockerfile .
+        # docker build -t gcr.io/${{ env.PROJECT_ID }}/hello-world:latest -f docker/Dockerfile .
+        docker buildx build -t hello-world:latest -f docker/Dockerfile .
+        gcloud auth configure-docker --quiet
 
     - name: List Docker images
       run: docker images     
 
     - name: Push Docker image
       run: |
-        docker push us-east1-docker.pkg.dev/$PROJECT_ID/images/hello-world:${{ github.sha }}
+        # docker push us-east1-docker.pkg.dev/$PROJECT_ID/images/hello-world:${{ github.sha }}
         # docker push gcr.io/${{ env.PROJECT_ID }}/hello-world:${{ github.sha }}
+        # docker tag hello-world:latest gcr.io/$PROJECT_ID/hello-world:latest 
+        docker tag hello-world:latest gcr.io/hello-world-begin/hello-world:latest
+        docker push gcr.io/hello-world-begin/hello-world:latest
       
-    - name: Initialize Terraform
-      run: terraform init infra/terraform/${{ env.TF_ENV }}
+    # - name: Initialize Terraform
+    #   run: terraform init infra/terraform/${{ env.TF_ENV }}
+    - name: Setup Terraform
+      uses: hashicorp/setup-terraform@v2
+      # with:
+      #   cli_config_credentials_token: ${{ secrets.TF_API_TOKEN }}
+    
+    - name: Terraform Init
+      run: terraform -chdir=infra/terraform/prod init
+      env:
+        GOOGLE_CREDENTIALS: ${{ secrets.PROD_GCP_SA_KEY }} 
+
+    # - name: Terraform Format
+    #   run: terraform -chdir=infra/terraform/prod fmt -check 
+    #   env:
+    #     GOOGLE_CREDENTIALS: ${{ secrets.PROD_GCP_SA_KEY }} 
+  
+
+    # Generates an execution plan for Terraform
+    - name: Terraform Plan
+      # run: terraform -chdir=infra/terraform/prod plan -input=false 
+      run: terraform -chdir=infra/terraform/prod plan -input=false 
+      continue-on-error: true
+      env:
+        GOOGLE_CREDENTIALS: ${{ secrets.PROD_GCP_SA_KEY }}
 
     - name: Terraform Apply for Dev
-      if: contains(github.ref, 'dev/')
-      run: |
+      if:  ${{ github.ref == 'refs/heads/dev' }}
+      run: |  
+        terraform init infra/terraform/dev
         terraform workspace select dev || terraform workspace new dev
         terraform apply -auto-approve -var="image_tag=${{ github.sha }}" infra/terraform/dev
 
     - name: Terraform Apply for Prod
-      if: startsWith(github.ref, 'prod/')
-      run: |
-        terraform workspace select prod || terraform workspace new prod
-        terraform apply -auto-approve -var="image_tag=${{ github.sha }}" infra/terraform/prod
+      if:  ${{ github.ref == 'refs/heads/prod' }}
+      run: terraform -chdir=infra/terraform/prod apply -auto-approve -input=false -var="image_tag=latest" 
+      env:
+        GOOGLE_CREDENTIALS: ${{ secrets.PROD_GCP_SA_KEY }}
