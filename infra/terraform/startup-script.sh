@@ -17,4 +17,4 @@ sudo systemctl enable docker
 sudo systemctl start docker
 
 # Run Docker container
-sudo docker run -d -p 8080:8080 gcr.io/${gcp_project}/hello-world:${image_tag}
+sudo docker run -d -p 5000:5000 gcr.io/${gcp_project}/hello-world:${image_tag}
